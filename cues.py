@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+limit=''
+
+# remove the limit='limit 5' line in order to process your whole library, else it will only process the first five tracks
+limit='limit 5'
+
 import sqlite3
 import mutagen
 from mutagen.id3 import ID3, error, delete, ID3FileType
@@ -73,7 +78,7 @@ args = parser.parse_args()
 
 con = sqlite3.connect(args.mixxx_database)
 cur = con.cursor()
-cur.execute('select track_locations.location, library.rating, library.artist, library.title, library.datetime_added, library.comment, library.album, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where library.rating = 5 and UPPER(track_locations.location) like "%.MP3" limit 1')
+cur.execute(f'select track_locations.location, library.rating, library.artist, library.title, library.datetime_added, library.comment, library.album, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where library.rating = 5 and UPPER(track_locations.location) like "%.MP3" {limit}')
 tracks = cur.fetchall()
 
 for track in tracks:
