@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# This only seems to support MP3 files because it uses the old 'Markers' format
+# which does not permit labelling the cues
+
 import sqlite3
 import mutagen
 from mutagen.id3 import ID3, error, delete, ID3FileType
@@ -59,7 +62,7 @@ def write_mp3(con, mp3file, samplerate, channels):
 
 con = sqlite3.connect('mixxxdb.sqlite')
 cur = con.cursor()
-cur.execute('select track_locations.location, library.rating, library.artist, library.title, library.datetime_added, library.comment, library.album, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where library.rating = 5 and track_locations.location like "%.mp3" limit 1')
+cur.execute('select track_locations.location, library.rating, library.artist, library.title, library.datetime_added, library.comment, library.album, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where library.rating = 5 and UPPER(track_locations.location) like "%.MP3"')
 tracks = cur.fetchall()
 
 for track in tracks:
