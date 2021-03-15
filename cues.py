@@ -3,7 +3,7 @@
 limit=''
 
 # remove the limit='limit 5' line in order to process your whole library, else it will only process the first five tracks
-limit='limit 5'
+#limit='limit 11'
 
 import sqlite3
 import mutagen
@@ -23,14 +23,14 @@ def mixxx_cuepos_to_ms(cuepos,samplerate,channels):
 def serato_cues_for_track(con, path, samplerate, channels):
     countcur = con.cursor()
     serato_cues = []
-    for cue in cur.execute(f'select cues.position, cues.hotcue, cues.label from track_locations inner join cues on cues.track_id = track_locations.id inner join library on library.id = track_locations.id where track_locations.location = (?) and cues.type = 1 order by track_locations.location', (path,)):
+    for cue in cur.execute(f'select cues.position, cues.hotcue, cues.label from track_locations inner join cues on cues.track_id = track_locations.id inner join library on library.id = track_locations.id where track_locations.location = (?) and cues.type = 1 and cues.hotcue >= 0 order by track_locations.location', (path,)):
         serato_cues.append((mixxx_cuepos_to_ms(cue[0], samplerate, channels), cue[1], cue[2]))
     return serato_cues
 
 def gen_serato_markers(con, file, samplerate, channels):
     # https://github.com/Holzhaus/serato-tags/blob/master/docs/serato_markers2.md
     cues = serato_cues_for_track(con, file, samplerate, channels)
-#    print(cues)
+    print(cues)
     markers = b'\x01\x01' + b'COLOR\x00' + b'\x00\x00\x00\x04' + b'\x00\xff\xff\xff'
 
     for cue in cues:
@@ -58,7 +58,8 @@ def write_flac(con, flacfile, samplerate, channels):
     audio.save()
 
 def write_id3(con, id3file, samplerate, channels):
-    audio = ID3(id3file)
+    audio = mutagen.File(id3file)
+#    audio = ID3(id3file)
 
     markers = b'\x01\x01'
     markers += textwrap.fill(base64.b64encode(gen_serato_markers(con, id3file, samplerate, channels)).decode('ascii'), width=72).encode('utf8')
@@ -78,7 +79,7 @@ args = parser.parse_args()
 
 con = sqlite3.connect(args.mixxx_database)
 cur = con.cursor()
-cur.execute(f'select track_locations.location, library.rating, library.artist, library.title, library.datetime_added, library.comment, library.album, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where library.rating = 5 and UPPER(track_locations.location) like "%.MP3" {limit}')
+cur.execute(f'select track_locations.location, library.rating, library.artist, library.title, library.datetime_added, library.comment, library.album, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where library.rating = 5 and mixxx_deleted = 0 and UPPER(track_locations.location) like "%.MP3" {limit}')
 tracks = cur.fetchall()
 
 for track in tracks:
