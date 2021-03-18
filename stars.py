@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
 limit=''
-#rating='library.rating > 2 and'
-rating=''
+rating='library.rating > 2 and'
 
 # remove the limit='limit 5' line in order to process your whole library, else it will only process the first five tracks
-#limit='limit 5'
+#limit='limit 1'
 
 import sqlite3
 import mutagen
@@ -34,7 +33,7 @@ def mixxx_cuepos_to_ms(cuepos,samplerate,channels):
 def serato_cues_for_track(con, path, samplerate, channels):
     countcur = con.cursor()
     serato_cues = []
-    for cue in countcur.execute(f'select cues.position, cues.hotcue, cues.label from track_locations inner join cues on cues.track_id = track_locations.id inner join library on library.id = track_locations.id where track_locations.location = (?) and cues.type = 1 and cues.hotcue >= 0 order by track_locations.location', (path,)):
+    for cue in cur.execute(f'select cues.position, cues.hotcue, cues.label from track_locations inner join cues on cues.track_id = track_locations.id inner join library on library.id = track_locations.id where track_locations.location = (?) and cues.type = 1 and cues.hotcue >= 0 order by track_locations.location', (path,)):
         serato_cues.append((mixxx_cuepos_to_ms(cue[0], samplerate, channels), cue[1], cue[2]))
     return serato_cues
 
@@ -59,7 +58,7 @@ def gen_serato_markers(con, file, samplerate, channels):
     markers += b'\x00'
     return markers
 
-def write_flac(con, flacfile, samplerate, channels):
+def write_flac(con, flacfile, rating, dateadded, samplerate, channels):
     audio = try_to_open(flacfile)
 
     markers = b'application/octet-stream' + b'\x00\x00' + b'Serato Markers2' + b'\x00\x01\x01'
@@ -68,24 +67,13 @@ def write_flac(con, flacfile, samplerate, channels):
     audio["SERATO_MARKERS_V2"] = textwrap.fill(base64.b64encode(markers).decode('ascii'), width=72)
     audio.save()
 
-def write_id3(con, id3file, samplerate, channels):
+def write_id3(con, id3file, rating, dateadded, samplerate, channels):
     audio = try_to_open(id3file)
 
-    markers = b'\x01\x01'
-    markers += textwrap.fill(base64.b64encode(gen_serato_markers(con, id3file, samplerate, channels)).decode('ascii'), width=72).encode('utf8')
-    markers += b'\x00' * 470
-
-    audio['GEOB:Serato Markers2'] = mutagen.id3.GEOB(
-        encoding=0,
-        mime='application/octet-stream',
-        desc='Serato Markers2',
-        data=markers,
+    audio['TCOM'] = mutagen.id3.TCOM(
+        encoding=3,
+        text= '⭐️' * rating,
     )
-
-    # Serato would prefer this older format if it already existed in the file
-    if 'GEOB:Serato Markers_' in audio:
-        del(audio['GEOB:Serato Markers_'])
-
     audio.save()
 
 parser = argparse.ArgumentParser()
@@ -95,7 +83,7 @@ args = parser.parse_args()
 con = sqlite3.connect(args.mixxx_database)
 cur = con.cursor()
 #cur.execute(f'select track_locations.location, library.rating, library.artist, library.title, library.datetime_added, library.comment, library.album, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where library.rating > 2 and mixxx_deleted = 0 and UPPER(track_locations.location) like "%.MP3" {limit}')
-cur.execute(f'select track_locations.location, library.rating, library.artist, library.title, library.datetime_added, library.comment, library.album, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where {rating} mixxx_deleted = 0 {limit}')
+cur.execute(f'select track_locations.location, library.rating, library.datetime_added, library.samplerate, library.channels from track_locations inner join library on library.id = track_locations.id where {rating} mixxx_deleted = 0 {limit}')
 tracks = cur.fetchall()
 
 for track in tracks:
@@ -103,8 +91,8 @@ for track in tracks:
     filetype = determine_filetype(track[0])
 
     if filetype == 'audio/flac':
-        write_flac(con, track[0], track[7], track[8])
+        write_flac(con, track[0], track[1], track[2], track[3], track[4])
     elif filetype == 'audio/mp3':
-        write_id3(con, track[0], track[7], track[8])
+        write_id3(con, track[0], track[1], track[2], track[3], track[4])
     else:
         print(f'Sorry, {filetype} files are not supported')
